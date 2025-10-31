@@ -2,6 +2,10 @@
 [![Open in Visual Studio Code](https://classroom.github.com/assets/open-in-vscode-2e0aaae1b6195c2367325f4f02e2d04e9abb55f0b24a779b69b11b9e10269abc.svg)](https://classroom.github.com/online_ide?assignment_repo_id=21354287&assignment_repo_type=AssignmentRepo)
 
 # 🧠 Neurosynth Frontend
+由於copilot的對話次數已達上限，以下是這次作業中我和gpt的對話紀錄:
+
+https://chatgpt.com/g/g-p-67ae08825b408191b41bee32f45f60de-tan/shared/c/6901dbd5-40a4-8323-8021-a12cdd7264d3?owner_user_id=user-hh2rOLXSUUAi655AJgJl3F1h
+
 This project implements an **interactive AJAX-based frontend** for exploring the **NeuroSynth** API service hosted at  
 [`https://hpc.psy.ntu.edu.tw:5000`](https://hpc.psy.ntu.edu.tw:5000).
 
