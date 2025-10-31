@@ -2,45 +2,208 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Fetch /terms Demo</title>
+  <title>NeuroSynth AJAX Autocomplete</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
-<body>
-  <h1>Fetch https://mil.psy.ntu.edu.tw:5000/terms</h1>
-  <button id="btn">Fetch again</button>
-  <pre id="out">Loading…</pre>
+<body class="bg-light p-4">
+  <div class="container">
+    <h1 class="text-center mb-4">🧠 NeuroSynth AJAX Autocomplete</h1>
+    <p class="text-center text-muted">Type terms — fetch suggestions, related terms, intersections & differences</p>
+
+    <!-- 🔹 Input for single term -->
+    <div class="mb-4 position-relative">
+      <label class="form-label fw-bold">🔍 Live term suggestions</label>
+      <input id="termInput" type="text" class="form-control" placeholder="Type a term...">
+      <div id="suggestions" class="list-group position-absolute w-100"></div>
+    </div>
+
+    <!-- 🔹 Buttons for single term -->
+    <div class="mb-4">
+      <button id="btnRelated" class="btn btn-primary me-2">Fetch related terms</button>
+      <button id="btnStudies" class="btn btn-warning">Fetch studies</button>
+    </div>
+
+    <!-- 🔹 Related & study results -->
+    <h5>🧩 Related Terms</h5>
+    <pre id="relatedOut" class="bg-white p-3 rounded border" style="max-height:200px; overflow:auto;">(none)</pre>
+
+    <h5>📚 Query Results</h5>
+    <pre id="studyOut" class="bg-white p-3 rounded border" style="max-height:400px; overflow:auto;">(none)</pre>
+
+    <hr class="my-5">
+
+    <!-- 🔹 Two-term intersection/difference -->
+    <h4>⚖️ Term Comparison</h4>
+    <div class="row g-2 mb-3">
+      <div class="col-md-5 position-relative">
+        <input id="termA" type="text" class="form-control" placeholder="Enter Term A (e.g., amygdala)">
+        <div id="suggestA" class="list-group position-absolute w-100"></div>
+      </div>
+      <div class="col-md-5 position-relative">
+        <input id="termB" type="text" class="form-control" placeholder="Enter Term B (e.g., emotion)">
+        <div id="suggestB" class="list-group position-absolute w-100"></div>
+      </div>
+      <div class="col-md-2 d-grid">
+        <button id="btnIntersection" class="btn btn-success mb-2">Fetch Intersection</button>
+        <button id="btnDifference" class="btn btn-danger">Fetch Difference</button>
+      </div>
+    </div>
+
+    <h5>🔍 Comparison Results</h5>
+    <pre id="compareOut" class="bg-white p-3 rounded border" style="max-height:400px; overflow:auto;">(none)</pre>
+  </div>
 
   <script>
-    async function fetchTerms() {
-      const out = document.getElementById('out');
-      out.textContent = 'Requesting…';
+    const BASE_URL = "https://hpc.psy.ntu.edu.tw:5000";
+    let allTerms = [];
+
+    // 🟦 Load all terms once
+    async function loadAllTerms() {
       try {
-        const resp = await fetch('https://mil.psy.ntu.edu.tw:5000/terms');
-        let info = `HTTP ${resp.status} ${resp.statusText}\n`;
-        const ct = resp.headers.get('content-type') || '';
-
-        if (!resp.ok) {
-          const text = await resp.text();
-          out.textContent = info + '\n' + text;
-          return;
-        }
-
-        if (ct.includes('application/json')) {
-          const data = await resp.json();
-          out.textContent = info + '\n' + JSON.stringify(data, null, 2);
-        } else {
-          const text = await resp.text();
-          out.textContent = info + '\n' + text;
-        }
+        const resp = await fetch(`${BASE_URL}/terms`);
+        const data = await resp.json();
+        allTerms = data.terms || [];
       } catch (err) {
-        document.getElementById('out').textContent =
-          'Error: ' + (err && err.message ? err.message : String(err)) +
-          '\n\nCommon causes:\n1) CORS not allowed by the server\n2) Opening this file via file:// instead of a local server\n3) Network/server issues';
+        console.error("Error loading terms:", err);
       }
     }
 
-    document.getElementById('btn').addEventListener('click', fetchTerms);
-    fetchTerms();
+    // 🟩 Generic autocomplete setup
+    function setupAutocomplete(inputId, suggestId) {
+      const input = document.getElementById(inputId);
+      const suggestions = document.getElementById(suggestId);
+
+      input.addEventListener("input", () => {
+        const q = input.value.trim().toLowerCase();
+        suggestions.innerHTML = "";
+        if (!q) return;
+        const filtered = allTerms.filter(t => t.toLowerCase().startsWith(q)).slice(0, 10);
+        for (const f of filtered) {
+          const div = document.createElement("button");
+          div.className = "list-group-item list-group-item-action";
+          div.textContent = f;
+          div.onclick = () => {
+            input.value = f;
+            suggestions.innerHTML = "";
+          };
+          suggestions.appendChild(div);
+        }
+      });
+
+      document.addEventListener("click", (e) => {
+        if (!suggestions.contains(e.target) && e.target !== input) {
+          suggestions.innerHTML = "";
+        }
+      });
+    }
+
+    // 🔹 Setup autocomplete for all 3 inputs
+    setupAutocomplete("termInput", "suggestions");
+    setupAutocomplete("termA", "suggestA");
+    setupAutocomplete("termB", "suggestB");
+
+    // 🟦 Related terms
+    document.getElementById("btnRelated").addEventListener("click", async () => {
+      const term = document.getElementById("termInput").value.trim();
+      if (!term) return alert("Please enter a term first.");
+      await showRelatedTerms(term);
+    });
+
+    // 🟦 Studies
+    document.getElementById("btnStudies").addEventListener("click", async () => {
+      const term = document.getElementById("termInput").value.trim();
+      if (!term) return alert("Please enter a term first.");
+      await showRelatedTerms(term);
+      await showStudies(term);
+    });
+
+    async function showRelatedTerms(term) {
+      const out = document.getElementById("relatedOut");
+      out.textContent = "Loading...";
+      try {
+        const resp = await fetch(`${BASE_URL}/terms/${encodeURIComponent(term)}`);
+        const data = await resp.json();
+        if (!data.related || data.related.length === 0) {
+          out.textContent = "(no related terms found)";
+          return;
+        }
+        out.textContent = data.related.map(
+          r => `${r.term.padEnd(15)} (co_count=${r.co_count}, jaccard=${r.jaccard.toFixed(3)})`
+        ).join("\n");
+      } catch (err) {
+        out.textContent = "Error fetching related terms: " + err.message;
+      }
+    }
+
+    async function showStudies(term) {
+      const out = document.getElementById("studyOut");
+      out.textContent = "Loading...";
+      try {
+        const resp = await fetch(`${BASE_URL}/query/${encodeURIComponent(term)}/studies`);
+        const data = await resp.json();
+        if (!data.results || data.results.length === 0) {
+          out.textContent = "(no studies found)";
+          return;
+        }
+
+        const studies = data.results.map(r => (
+          `📖 ${r.title}\n` +
+          `👩‍🔬 Authors: ${r.authors}\n` +
+          `📘 Journal: ${r.journal}\n` +
+          `📅 Year: ${r.year}\n` +
+          `🧩 study_id: ${r.study_id}, contrast_id: ${r.contrast_id}, id: ${r.id}\n` +
+          `------------------------------------------------------------`
+        ));
+        out.textContent = `Total studies: ${data.count}\n\n` + studies.join("\n");
+      } catch (err) {
+        out.textContent = "Error fetching studies: " + err.message;
+      }
+    }
+
+    // 🆕 Compare two terms: intersection or difference
+    async function fetchCompare(mode) {
+      const A = document.getElementById("termA").value.trim();
+      const B = document.getElementById("termB").value.trim();
+      const out = document.getElementById("compareOut");
+
+      if (!A || !B) return alert("Please enter both terms.");
+      out.textContent = `Loading ${mode} between "${A}" and "${B}" ...`;
+
+      try {
+        let url = "";
+        if (mode === "intersection") {
+          url = `${BASE_URL}/query/${encodeURIComponent(A)}%20and%20${encodeURIComponent(B)}/studies`;
+        } else {
+          url = `${BASE_URL}/query/${encodeURIComponent(A)}%20not%20${encodeURIComponent(B)}/studies`;
+        }
+
+        const resp = await fetch(url);
+        const data = await resp.json();
+
+        if (!data.results || data.results.length === 0) {
+          out.textContent = `(no ${mode} results found)`;
+          return;
+        }
+
+        const studies = data.results.map(r => (
+          `📖 ${r.title}\n` +
+          `👩‍🔬 Authors: ${r.authors}\n` +
+          `📘 Journal: ${r.journal}\n` +
+          `📅 Year: ${r.year}\n` +
+          `🧩 study_id: ${r.study_id}, contrast_id: ${r.contrast_id}, id: ${r.id}\n` +
+          `------------------------------------------------------------`
+        ));
+        out.textContent = `Total ${mode} studies: ${data.count}\n\n` + studies.join("\n");
+      } catch (err) {
+        out.textContent = `Error fetching ${mode}: ${err.message}`;
+      }
+    }
+
+    document.getElementById("btnIntersection").addEventListener("click", () => fetchCompare("intersection"));
+    document.getElementById("btnDifference").addEventListener("click", () => fetchCompare("difference"));
+
+    // 🚀 Initialize
+    loadAllTerms();
   </script>
 </body>
 </html>
-
